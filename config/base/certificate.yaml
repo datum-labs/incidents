@@ -1,0 +1,36 @@
+# Bootstrap a CA for the incidents-system namespace
+# Step 1: Create a self-signed ClusterIssuer to bootstrap the CA
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: incidents-selfsigned-issuer
+spec:
+  selfSigned: {}
+---
+# Step 2: Create a CA certificate using the self-signed issuer
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: incidents-ca
+spec:
+  isCA: true
+  commonName: incidents-ca
+  secretName: incidents-ca-secret
+  duration: 87600h  # 10 years
+  renewBefore: 8760h  # 1 year
+  privateKey:
+    algorithm: RSA
+    size: 4096
+  issuerRef:
+    name: incidents-selfsigned-issuer
+    kind: ClusterIssuer
+---
+# Step 3: Create a CA Issuer that uses the CA certificate
+# This issuer will be used by the CSI driver
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: incidents-ca-issuer
+spec:
+  ca:
+    secretName: incidents-ca-secret
