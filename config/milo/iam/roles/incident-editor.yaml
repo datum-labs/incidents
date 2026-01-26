@@ -1,0 +1,37 @@
+# Milo Role for Incident management
+# Users/ServiceAccounts can be granted this role via RoleBindings
+apiVersion: iam.miloapis.com/v1alpha1
+kind: Role
+metadata:
+  name: incidents.operations.miloapis.com-incident-editor
+  namespace: milo-system
+spec:
+  launchStage: Alpha
+  includedPermissions:
+    - incidents.operations.miloapis.com/incidents.create
+    - incidents.operations.miloapis.com/incidents.get
+    - incidents.operations.miloapis.com/incidents.list
+    - incidents.operations.miloapis.com/incidents.update
+    - incidents.operations.miloapis.com/incidents.delete
+    - incidents.operations.miloapis.com/incidentevents.create
+    - incidents.operations.miloapis.com/incidentevents.get
+    - incidents.operations.miloapis.com/incidentevents.list
+    - incidents.operations.miloapis.com/incidenttasks.create
+    - incidents.operations.miloapis.com/incidenttasks.get
+    - incidents.operations.miloapis.com/incidenttasks.list
+    - incidents.operations.miloapis.com/incidenttasks.update
+    - incidents.operations.miloapis.com/incidenttasks.delete
+---
+apiVersion: iam.miloapis.com/v1alpha1
+kind: Role
+metadata:
+  name: incidents.operations.miloapis.com-severity-admin
+  namespace: milo-system
+spec:
+  launchStage: Alpha
+  includedPermissions:
+    - incidents.operations.miloapis.com/incidentseverities.create
+    - incidents.operations.miloapis.com/incidentseverities.get
+    - incidents.operations.miloapis.com/incidentseverities.list
+    - incidents.operations.miloapis.com/incidentseverities.update
+    - incidents.operations.miloapis.com/incidentseverities.delete

@@ -1,0 +1,20 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: incidents-ui
+spec:
+  parentRefs:
+    - name: default-gateway
+      namespace: envoy-gateway-system
+  hostnames:
+    - "incidents.localhost"
+    - "incidents.local"
+  rules:
+    # Route all traffic to the UI - it will proxy API requests internally
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: incidents-ui
+          port: 80

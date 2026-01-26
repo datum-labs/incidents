@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: incidents-system
+  labels:
+    app.kubernetes.io/name: incidents
+    app.kubernetes.io/component: namespace

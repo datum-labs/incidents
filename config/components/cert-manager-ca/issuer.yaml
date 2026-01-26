@@ -1,0 +1,8 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: incidents-ca-issuer
+spec:
+  ca:
+    # Reference the secret created by the CA Certificate
+    secretName: incidents-ca-secret

@@ -1,0 +1,361 @@
+version: '3'
+
+includes:
+  # Include test-infra taskfile for local Kubernetes test environment
+  # Usage: task test-infra:<task-name>
+  # Example: task test-infra:cluster-up
+  test-infra:
+    taskfile: https://raw.githubusercontent.com/datum-cloud/test-infra/main/Taskfile.yml
+    optional: true
+
+vars:
+  TOOL_DIR: "{{.USER_WORKING_DIR}}/bin"
+  IMAGE_NAME: "ghcr.io/datum-cloud/incidents"
+  UI_IMAGE_NAME: "ghcr.io/datum-cloud/incidents-ui"
+  IMAGE_TAG: "dev"
+  # Test infrastructure configuration
+  CLUSTER_NAME: "incidents-test"
+  KUBECONFIG_FILE: ".test-infra/kubeconfig"
+
+env:
+  KUBECONFIG: "{{.KUBECONFIG_FILE}}"
+
+tasks:
+  default:
+    desc: List all available tasks
+    cmds:
+      - task --list
+    silent: true
+
+  # Build tasks
+  build:
+    desc: Build the incidents binary
+    cmds:
+      - |
+        set -e
+        echo "Building incidents..."
+        mkdir -p {{.TOOL_DIR}}
+
+        # Get git information for version injection
+        GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+        VERSION="v0.0.0-dev+${GIT_COMMIT:0:7}"
+        GIT_TREE_STATE="clean"
+        if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+          GIT_TREE_STATE="dirty"
+        fi
+        BUILD_DATE=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || echo "unknown")
+
+        echo "Version: ${VERSION}, Commit: ${GIT_COMMIT:0:7}, Tree: ${GIT_TREE_STATE}"
+
+        go build \
+          -ldflags="-X 'go.miloapis.com/incidents/internal/version.Version=${VERSION}' \
+                    -X 'go.miloapis.com/incidents/internal/version.GitCommit=${GIT_COMMIT}' \
+                    -X 'go.miloapis.com/incidents/internal/version.GitTreeState=${GIT_TREE_STATE}' \
+                    -X 'go.miloapis.com/incidents/internal/version.BuildDate=${BUILD_DATE}'" \
+          -o {{.TOOL_DIR}}/incidents ./cmd/incidents
+        echo "✅ Binary built: {{.TOOL_DIR}}/incidents"
+    silent: true
+
+  # Development tasks
+  dev:build:
+    desc: Build the Incidents server container image for development
+    silent: true
+    cmds:
+      - |
+        set -e
+        echo "Building Incidents server container image: {{.IMAGE_NAME}}:{{.IMAGE_TAG}}"
+
+        # Get git information for version injection
+        GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+        VERSION="v0.0.0-dev+${GIT_COMMIT:0:7}"
+        GIT_TREE_STATE="clean"
+        if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+          GIT_TREE_STATE="dirty"
+        fi
+        BUILD_DATE=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || echo "unknown")
+
+        docker build \
+          --build-arg VERSION="${VERSION}" \
+          --build-arg GIT_COMMIT="${GIT_COMMIT}" \
+          --build-arg GIT_TREE_STATE="${GIT_TREE_STATE}" \
+          --build-arg BUILD_DATE="${BUILD_DATE}" \
+          -t {{.IMAGE_NAME}}:{{.IMAGE_TAG}} \
+          .
+
+        echo "✅ Container image built: {{.IMAGE_NAME}}:{{.IMAGE_TAG}}"
+
+  dev:load-image:
+    desc: Load the incidents image into the KIND cluster
+    silent: true
+    cmds:
+      - |
+        set -e
+        echo "Loading {{.IMAGE_NAME}}:{{.IMAGE_TAG}} into KIND cluster '{{.CLUSTER_NAME}}'..."
+        kind load docker-image {{.IMAGE_NAME}}:{{.IMAGE_TAG}} --name {{.CLUSTER_NAME}}
+        echo "✅ Image loaded into KIND cluster"
+
+  dev:deploy:
+    desc: Deploy incidents to the test cluster
+    silent: true
+    cmds:
+      - |
+        set -e
+        if [ ! -f "{{.KUBECONFIG_FILE}}" ]; then
+          echo "❌ Test cluster not running. Run 'task test-infra:cluster-up' first."
+          exit 1
+        fi
+        echo "Deploying incidents to test cluster..."
+        kubectl --kubeconfig {{.KUBECONFIG_FILE}} apply -k config/overlays/dev
+        echo "✅ Incidents deployed to test cluster"
+
+  dev:undeploy:
+    desc: Remove incidents from the test cluster
+    silent: true
+    cmds:
+      - |
+        set -e
+        if [ ! -f "{{.KUBECONFIG_FILE}}" ]; then
+          echo "❌ Test cluster not running."
+          exit 1
+        fi
+        echo "Removing incidents from test cluster..."
+        kubectl --kubeconfig {{.KUBECONFIG_FILE}} delete -k config/overlays/dev --ignore-not-found
+        echo "✅ Incidents removed from test cluster"
+
+  dev:logs:
+    desc: Stream logs from the incidents apiserver
+    silent: true
+    cmds:
+      - |
+        if [ ! -f "{{.KUBECONFIG_FILE}}" ]; then
+          echo "❌ Test cluster not running."
+          exit 1
+        fi
+        kubectl --kubeconfig {{.KUBECONFIG_FILE}} logs -n incidents-system -l app=incidents-apiserver -f
+
+  dev:status:
+    desc: Show status of incidents deployment in test cluster
+    silent: true
+    cmds:
+      - |
+        if [ ! -f "{{.KUBECONFIG_FILE}}" ]; then
+          echo "❌ Test cluster not running. Run 'task test-infra:cluster-up' first."
+          exit 1
+        fi
+        echo "🔍 Incidents Deployment Status"
+        echo ""
+        echo "📦 Namespace:"
+        kubectl --kubeconfig {{.KUBECONFIG_FILE}} get ns incidents-system 2>/dev/null || echo "   ❌ incidents-system namespace not found"
+        echo ""
+        echo "🚀 Deployment:"
+        kubectl --kubeconfig {{.KUBECONFIG_FILE}} get deployment -n incidents-system 2>/dev/null || echo "   No deployments found"
+        echo ""
+        echo "🔌 Service:"
+        kubectl --kubeconfig {{.KUBECONFIG_FILE}} get svc -n incidents-system 2>/dev/null || echo "   No services found"
+        echo ""
+        echo "📋 Pods:"
+        kubectl --kubeconfig {{.KUBECONFIG_FILE}} get pods -n incidents-system 2>/dev/null || echo "   No pods found"
+        echo ""
+        echo "🔑 APIService:"
+        kubectl --kubeconfig {{.KUBECONFIG_FILE}} get apiservice v1alpha1.incidents.operations.miloapis.com 2>/dev/null || echo "   APIService not registered"
+
+  # Code generation tasks
+  generate:
+    desc: Generate deepcopy and OpenAPI code
+    cmds:
+      - |
+        set -e
+        echo "Generating code..."
+
+        # Run deepcopy code generator
+        echo "Running deepcopy-gen..."
+        go run k8s.io/code-generator/cmd/deepcopy-gen \
+          --go-header-file hack/boilerplate.go.txt \
+          --output-file zz_generated.deepcopy.go \
+          --bounding-dirs go.miloapis.com/incidents/pkg/apis \
+          go.miloapis.com/incidents/pkg/apis/incidents/v1alpha1
+
+        # Run OpenAPI code generator
+        echo "Running openapi-gen..."
+        go run k8s.io/kube-openapi/cmd/openapi-gen \
+          --go-header-file hack/boilerplate.go.txt \
+          --output-file zz_generated.openapi.go \
+          --output-dir pkg/generated/openapi \
+          --output-pkg go.miloapis.com/incidents/pkg/generated/openapi \
+          go.miloapis.com/incidents/pkg/apis/incidents/v1alpha1 \
+          k8s.io/apimachinery/pkg/apis/meta/v1 \
+          k8s.io/apimachinery/pkg/runtime \
+          k8s.io/apimachinery/pkg/version
+
+        echo "✅ Code generation complete"
+    silent: true
+
+  # Test tasks
+  test:
+    desc: Run unit tests
+    cmds:
+      - go test -v ./...
+
+  # Cleanup tasks
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf {{.TOOL_DIR}}
+      - rm -rf .task
+      - echo "✅ Cleaned build artifacts"
+    silent: true
+
+  # Format and lint
+  fmt:
+    desc: Format Go code
+    cmds:
+      - go fmt ./...
+      - echo "✅ Code formatted"
+    silent: true
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - go vet ./...
+      - echo "✅ Vet complete"
+    silent: true
+
+  # UI tasks
+  ui:install:
+    desc: Install UI dependencies
+    dir: ui
+    cmds:
+      - npm install
+      - echo "✅ UI dependencies installed"
+    silent: true
+
+  ui:dev:
+    desc: Start UI development server
+    dir: ui
+    cmds:
+      - npm run dev
+
+  ui:build:
+    desc: Build UI for production
+    dir: ui
+    cmds:
+      - npm run build
+      - echo "✅ UI built for production"
+    silent: true
+
+  ui:build:lib:
+    desc: Build UI as NPM library
+    dir: ui
+    cmds:
+      - npm run build:lib
+      - echo "✅ UI library built"
+    silent: true
+
+  ui:test:
+    desc: Run UI tests
+    dir: ui
+    cmds:
+      - npm test
+
+  ui:lint:
+    desc: Run UI linting
+    dir: ui
+    cmds:
+      - npm run lint
+      - echo "✅ UI linting complete"
+    silent: true
+
+  ui:typecheck:
+    desc: Run UI type checking
+    dir: ui
+    cmds:
+      - npm run typecheck
+      - echo "✅ UI type check complete"
+    silent: true
+
+  ui:storybook:
+    desc: Start Storybook for UI component development
+    dir: ui
+    cmds:
+      - npm run storybook
+
+  ui:clean:
+    desc: Clean UI build artifacts
+    dir: ui
+    cmds:
+      - rm -rf dist node_modules
+      - echo "✅ UI artifacts cleaned"
+    silent: true
+
+  ui:docker:build:
+    desc: Build the UI container image for development
+    silent: true
+    cmds:
+      - |
+        set -e
+        echo "Building UI container image: {{.UI_IMAGE_NAME}}:{{.IMAGE_TAG}}"
+        docker build \
+          -t {{.UI_IMAGE_NAME}}:{{.IMAGE_TAG}} \
+          ./ui
+        echo "✅ UI container image built: {{.UI_IMAGE_NAME}}:{{.IMAGE_TAG}}"
+
+  ui:docker:load:
+    desc: Load the UI image into the KIND cluster
+    silent: true
+    cmds:
+      - |
+        set -e
+        echo "Loading {{.UI_IMAGE_NAME}}:{{.IMAGE_TAG}} into KIND cluster '{{.CLUSTER_NAME}}'..."
+        kind load docker-image {{.UI_IMAGE_NAME}}:{{.IMAGE_TAG}} --name {{.CLUSTER_NAME}}
+        echo "✅ UI image loaded into KIND cluster"
+
+  ui:logs:
+    desc: Stream logs from the incidents UI
+    silent: true
+    cmds:
+      - |
+        if [ ! -f "{{.KUBECONFIG_FILE}}" ]; then
+          echo "❌ Test cluster not running."
+          exit 1
+        fi
+        kubectl --kubeconfig {{.KUBECONFIG_FILE}} logs -n incidents-system -l app=incidents-ui -f
+
+  ui:port-forward:
+    desc: Port forward the UI to localhost:8080 (direct, bypasses gateway)
+    silent: true
+    cmds:
+      - |
+        if [ ! -f "{{.KUBECONFIG_FILE}}" ]; then
+          echo "❌ Test cluster not running."
+          exit 1
+        fi
+        echo "Port forwarding incidents-ui to http://localhost:8080"
+        echo "Press Ctrl+C to stop"
+        kubectl --kubeconfig {{.KUBECONFIG_FILE}} port-forward -n incidents-system svc/incidents-ui 8080:80
+
+  ui:open:
+    desc: Open the UI in a browser (via Envoy Gateway)
+    silent: true
+    cmds:
+      - |
+        echo "Opening Incidents UI at https://incidents.localhost:30443"
+        echo ""
+        echo "Note: You may need to add '127.0.0.1 incidents.localhost' to /etc/hosts"
+        echo "      and accept the self-signed certificate in your browser."
+        echo ""
+        open "https://incidents.localhost:30443" 2>/dev/null || \
+        xdg-open "https://incidents.localhost:30443" 2>/dev/null || \
+        echo "Please open https://incidents.localhost:30443 in your browser"
+
+  # Combined development tasks
+  dev:build-all:
+    desc: Build both API server and UI container images
+    cmds:
+      - task: dev:build
+      - task: ui:docker:build
+
+  dev:load-all:
+    desc: Load both API server and UI images into KIND cluster
+    cmds:
+      - task: dev:load-image
+      - task: ui:docker:load
