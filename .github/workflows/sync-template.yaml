@@ -1,0 +1,200 @@
+# Template Sync Workflow
+# This workflow syncs specific files from the template repository to keep
+# derived repositories up to date with template changes.
+#
+# How it works:
+# 1. Reads .github/template-sync.yaml for configuration
+# 2. Fetches specified files from the template repository
+# 3. Creates a PR if any files have changed
+#
+# Derived repos should NOT modify this workflow - it will be overwritten
+# by template sync updates.
+
+name: Sync Template Files
+
+on:
+  # Run weekly on Monday at 9am UTC
+  schedule:
+    - cron: "0 9 * * 1"
+
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (don't create PR)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if this is the template repo
+        id: check-template
+        run: |
+          CURRENT_REPO="${{ github.repository }}"
+          CONFIG_FILE=".github/template-sync.yaml"
+
+          if [[ ! -f "$CONFIG_FILE" ]]; then
+            echo "No template-sync.yaml found, skipping sync"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Extract template repo from config (simple grep, works for basic YAML)
+          TEMPLATE_REPO=$(grep "^template_repository:" "$CONFIG_FILE" | sed 's/template_repository: *//' | sed 's|https://github.com/||')
+
+          if [[ "$CURRENT_REPO" == "$TEMPLATE_REPO" ]]; then
+            echo "This is the template repository itself, skipping sync"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "skip=false" >> $GITHUB_OUTPUT
+          echo "template_repo=$TEMPLATE_REPO" >> $GITHUB_OUTPUT
+
+      - name: Parse sync configuration
+        if: steps.check-template.outputs.skip != 'true'
+        id: config
+        run: |
+          CONFIG_FILE=".github/template-sync.yaml"
+
+          # Extract configuration values
+          TEMPLATE_REPO=$(grep "^template_repository:" "$CONFIG_FILE" | sed 's/template_repository: *//')
+          TEMPLATE_BRANCH=$(grep "^template_branch:" "$CONFIG_FILE" | sed 's/template_branch: *//')
+
+          # Default branch to main if not specified
+          TEMPLATE_BRANCH=${TEMPLATE_BRANCH:-main}
+
+          echo "template_repo=$TEMPLATE_REPO" >> $GITHUB_OUTPUT
+          echo "template_branch=$TEMPLATE_BRANCH" >> $GITHUB_OUTPUT
+
+          # Extract sync paths (between sync_paths: and exclude_paths: or pr_labels:)
+          SYNC_PATHS=$(awk '/^sync_paths:/,/^[a-z_]+:/' "$CONFIG_FILE" | grep "^  - " | sed 's/^  - //' | tr '\n' ' ')
+          echo "sync_paths=$SYNC_PATHS" >> $GITHUB_OUTPUT
+
+          # Extract PR labels
+          PR_LABELS=$(awk '/^pr_labels:/,/^[a-z_]+:/' "$CONFIG_FILE" | grep "^  - " | sed 's/^  - //' | tr '\n' ',' | sed 's/,$//')
+          echo "pr_labels=$PR_LABELS" >> $GITHUB_OUTPUT
+
+      - name: Fetch template files
+        if: steps.check-template.outputs.skip != 'true'
+        id: fetch
+        run: |
+          TEMPLATE_REPO="${{ steps.config.outputs.template_repo }}"
+          TEMPLATE_BRANCH="${{ steps.config.outputs.template_branch }}"
+          SYNC_PATHS="${{ steps.config.outputs.sync_paths }}"
+
+          # Create temp directory for template
+          TEMPLATE_DIR=$(mktemp -d)
+          echo "template_dir=$TEMPLATE_DIR" >> $GITHUB_OUTPUT
+
+          # Clone template repo (shallow)
+          git clone --depth 1 --branch "$TEMPLATE_BRANCH" "$TEMPLATE_REPO" "$TEMPLATE_DIR"
+
+          # Track changes
+          CHANGED_FILES=""
+
+          # Sync each path
+          for path in $SYNC_PATHS; do
+            TEMPLATE_PATH="$TEMPLATE_DIR/$path"
+            LOCAL_PATH="./$path"
+
+            if [[ ! -e "$TEMPLATE_PATH" ]]; then
+              echo "Warning: $path does not exist in template repo, skipping"
+              continue
+            fi
+
+            # Create parent directory if needed
+            mkdir -p "$(dirname "$LOCAL_PATH")"
+
+            if [[ -d "$TEMPLATE_PATH" ]]; then
+              # Directory: sync recursively
+              cp -r "$TEMPLATE_PATH" "$(dirname "$LOCAL_PATH")/"
+            else
+              # File: copy directly
+              cp "$TEMPLATE_PATH" "$LOCAL_PATH"
+            fi
+
+            # Check if file changed
+            if ! git diff --quiet -- "$path" 2>/dev/null || [[ ! -z "$(git ls-files --others --exclude-standard -- "$path")" ]]; then
+              CHANGED_FILES="$CHANGED_FILES $path"
+            fi
+          done
+
+          # Trim whitespace
+          CHANGED_FILES=$(echo "$CHANGED_FILES" | xargs)
+
+          if [[ -z "$CHANGED_FILES" ]]; then
+            echo "No files changed"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "Changed files: $CHANGED_FILES"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "changed_files=$CHANGED_FILES" >> $GITHUB_OUTPUT
+          fi
+
+          # Get template commit SHA for reference
+          TEMPLATE_SHA=$(git -C "$TEMPLATE_DIR" rev-parse --short HEAD)
+          echo "template_sha=$TEMPLATE_SHA" >> $GITHUB_OUTPUT
+
+      - name: Create Pull Request
+        if: steps.check-template.outputs.skip != 'true' && steps.fetch.outputs.has_changes == 'true' && inputs.dry_run != true
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: sync files from template repository"
+          title: "chore: sync files from template repository"
+          body: |
+            ## Template Sync
+
+            This PR syncs files from the [template repository](${{ steps.config.outputs.template_repo }}).
+
+            **Template commit:** `${{ steps.fetch.outputs.template_sha }}`
+
+            ### Changed files
+
+            ${{ steps.fetch.outputs.changed_files }}
+
+            ### Review checklist
+
+            - [ ] Review changes for any breaking modifications
+            - [ ] Ensure no local customizations are being overwritten unintentionally
+            - [ ] Run tests to verify compatibility
+
+            ---
+
+            > This PR was automatically created by the [template sync workflow](.github/workflows/sync-template.yaml).
+            > To modify which files are synced, edit [.github/template-sync.yaml](.github/template-sync.yaml).
+          branch: chore/sync-template
+          delete-branch: true
+          labels: ${{ steps.config.outputs.pr_labels }}
+
+      - name: Dry run summary
+        if: steps.check-template.outputs.skip != 'true' && steps.fetch.outputs.has_changes == 'true' && inputs.dry_run == true
+        run: |
+          echo "## Dry Run Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The following files would be updated:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          for file in ${{ steps.fetch.outputs.changed_files }}; do
+            echo "- \`$file\`" >> $GITHUB_STEP_SUMMARY
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Run without dry_run to create a PR." >> $GITHUB_STEP_SUMMARY
+
+      - name: No changes summary
+        if: steps.check-template.outputs.skip != 'true' && steps.fetch.outputs.has_changes == 'false'
+        run: |
+          echo "## Template Sync" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All synced files are already up to date with the template repository." >> $GITHUB_STEP_SUMMARY

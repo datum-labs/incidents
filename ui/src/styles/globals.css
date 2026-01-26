@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --incidents-background: 0 0% 100%;
+    --incidents-foreground: 222.2 84% 4.9%;
+    --incidents-card: 0 0% 100%;
+    --incidents-card-foreground: 222.2 84% 4.9%;
+    --incidents-popover: 0 0% 100%;
+    --incidents-popover-foreground: 222.2 84% 4.9%;
+    --incidents-primary: 222.2 47.4% 11.2%;
+    --incidents-primary-foreground: 210 40% 98%;
+    --incidents-secondary: 210 40% 96.1%;
+    --incidents-secondary-foreground: 222.2 47.4% 11.2%;
+    --incidents-muted: 210 40% 96.1%;
+    --incidents-muted-foreground: 215.4 16.3% 46.9%;
+    --incidents-accent: 210 40% 96.1%;
+    --incidents-accent-foreground: 222.2 47.4% 11.2%;
+    --incidents-destructive: 0 84.2% 60.2%;
+    --incidents-destructive-foreground: 210 40% 98%;
+    --incidents-border: 214.3 31.8% 91.4%;
+    --incidents-input: 214.3 31.8% 91.4%;
+    --incidents-ring: 222.2 84% 4.9%;
+    --incidents-radius: 0.5rem;
+
+    /* Incident-specific colors */
+    --incidents-severity-critical: 0 84% 60%;
+    --incidents-severity-high: 25 95% 53%;
+    --incidents-severity-medium: 48 96% 53%;
+    --incidents-severity-low: 142 76% 36%;
+
+    --incidents-status-active: 0 84% 60%;
+    --incidents-status-resolved: 142 76% 36%;
+    --incidents-status-drill: 262 83% 58%;
+
+    --incidents-task-todo: 215 16% 47%;
+    --incidents-task-progress: 199 89% 48%;
+    --incidents-task-done: 142 76% 36%;
+  }
+
+  .dark {
+    --incidents-background: 222.2 84% 4.9%;
+    --incidents-foreground: 210 40% 98%;
+    --incidents-card: 222.2 84% 4.9%;
+    --incidents-card-foreground: 210 40% 98%;
+    --incidents-popover: 222.2 84% 4.9%;
+    --incidents-popover-foreground: 210 40% 98%;
+    --incidents-primary: 210 40% 98%;
+    --incidents-primary-foreground: 222.2 47.4% 11.2%;
+    --incidents-secondary: 217.2 32.6% 17.5%;
+    --incidents-secondary-foreground: 210 40% 98%;
+    --incidents-muted: 217.2 32.6% 17.5%;
+    --incidents-muted-foreground: 215 20.2% 65.1%;
+    --incidents-accent: 217.2 32.6% 17.5%;
+    --incidents-accent-foreground: 210 40% 98%;
+    --incidents-destructive: 0 62.8% 30.6%;
+    --incidents-destructive-foreground: 210 40% 98%;
+    --incidents-border: 217.2 32.6% 17.5%;
+    --incidents-input: 217.2 32.6% 17.5%;
+    --incidents-ring: 212.7 26.8% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply incidents-border-border;
+  }
+  body {
+    @apply incidents-bg-background incidents-text-foreground;
+  }
+}

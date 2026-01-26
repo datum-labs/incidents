@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: incidents-system
+
+resources:
+  - ../../base
+
+# Include components for development environment
+components:
+  - ../../components/namespace
+  - ../../components/api-registration
+  - ../../components/cert-manager-ca
+  - ../../components/observability
+  - ../../components/tracing
+  - ../../components/ui
+
+# Override image tag for dev builds
+images:
+  - name: ghcr.io/datum-cloud/incidents
+    newTag: dev
+  - name: ghcr.io/datum-cloud/incidents-ui
+    newTag: dev

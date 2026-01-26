@@ -1,0 +1,38 @@
+# Template Sync Configuration
+# This file configures which files are synced from the template repository.
+#
+# TEMPLATE NOTE: When creating a repo from this template, update the
+# `template_repository` field to point to the original template repo URL.
+
+# The source template repository to sync from
+template_repository: https://github.com/datum-cloud/service-template
+
+# The branch to sync from (usually main)
+template_branch: main
+
+# Files and directories to sync from the template repository.
+# These paths are relative to the repository root.
+#
+# Sync behavior:
+# - Files listed here will be overwritten with the template version
+# - Use glob patterns for multiple files (e.g., ".github/workflows/*.yaml")
+# - Directories sync all contents recursively
+#
+# IMPORTANT: Only include files that should be kept in sync with the template.
+# Do NOT include files that are customized per-service (e.g., types.go, main.go)
+sync_paths:
+  # GitHub Actions workflows for CI/CD
+  - .github/workflows/testing.yaml
+  - .github/workflows/sync-template.yaml
+
+  # Dockerfile for container builds
+  - Dockerfile
+
+# Files to exclude from sync even if they match sync_paths patterns
+# Useful when using glob patterns but need to exclude specific files
+exclude_paths: []
+
+# Labels to add to the sync PR
+pr_labels:
+  - template-sync
+  - automated

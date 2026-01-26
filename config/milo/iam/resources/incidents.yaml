@@ -1,0 +1,84 @@
+# ProtectedResources for Incidents API
+# Milo provides IAM capabilities for Kubernetes APIs
+# See https://github.com/datum-cloud/milo for more information
+apiVersion: iam.miloapis.com/v1alpha1
+kind: ProtectedResource
+metadata:
+  name: incidents.operations.miloapis.com-incidents
+spec:
+  serviceRef:
+    name: "incidents.operations.miloapis.com"
+  kind: Incident
+  plural: incidents
+  singular: incident
+  permissions:
+    - create
+    - get
+    - list
+    - update
+    - delete
+  parentResources:
+    - apiGroup: resourcemanager.miloapis.com
+      kind: Organization
+    - apiGroup: resourcemanager.miloapis.com
+      kind: Project
+    - apiGroup: iam.miloapis.com
+      kind: User
+---
+apiVersion: iam.miloapis.com/v1alpha1
+kind: ProtectedResource
+metadata:
+  name: incidents.operations.miloapis.com-incidentseverities
+spec:
+  serviceRef:
+    name: "incidents.operations.miloapis.com"
+  kind: IncidentSeverity
+  plural: incidentseverities
+  singular: incidentseverity
+  permissions:
+    - create
+    - get
+    - list
+    - update
+    - delete
+  parentResources:
+    - apiGroup: resourcemanager.miloapis.com
+      kind: Organization
+---
+apiVersion: iam.miloapis.com/v1alpha1
+kind: ProtectedResource
+metadata:
+  name: incidents.operations.miloapis.com-incidentevents
+spec:
+  serviceRef:
+    name: "incidents.operations.miloapis.com"
+  kind: IncidentEvent
+  plural: incidentevents
+  singular: incidentevent
+  permissions:
+    - create
+    - get
+    - list
+  parentResources:
+    - apiGroup: incidents.operations.miloapis.com
+      kind: Incident
+---
+apiVersion: iam.miloapis.com/v1alpha1
+kind: ProtectedResource
+metadata:
+  name: incidents.operations.miloapis.com-incidenttasks
+spec:
+  serviceRef:
+    name: "incidents.operations.miloapis.com"
+  kind: IncidentTask
+  plural: incidenttasks
+  singular: incidenttask
+  permissions:
+    - create
+    - get
+    - list
+    - update
+    - delete
+  parentResources:
+    - apiGroup: incidents.operations.miloapis.com
+      kind: Incident
