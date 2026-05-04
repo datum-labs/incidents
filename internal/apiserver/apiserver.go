@@ -2,6 +2,7 @@ package apiserver
 
 import (
 	"context"
+	"os"
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -94,11 +95,19 @@ func (c completedConfig) New() (*IncidentsServer, error) {
 		GenericAPIServer: genericServer,
 	}
 
-	// Initialize Grafana IRM client
-	irmClient := irm.NewClient(
-		c.ExtraConfig.GrafanaIRMURL,
-		strings.TrimSpace(c.ExtraConfig.GrafanaIRMToken),
-	)
+	// Initialize Grafana IRM client.
+	// When GRAFANA_IRM_STUB=true the stub no-op client is used so the server
+	// can start without real credentials (e.g. in a local kind demo cluster).
+	var irmClient irm.Interface
+	if os.Getenv("GRAFANA_IRM_STUB") == "true" {
+		klog.Info("GRAFANA_IRM_STUB=true: using no-op IRM stub client")
+		irmClient = &irm.StubClient{}
+	} else {
+		irmClient = irm.NewClient(
+			c.ExtraConfig.GrafanaIRMURL,
+			strings.TrimSpace(c.ExtraConfig.GrafanaIRMToken),
+		)
+	}
 
 	// Create storage implementations
 	severityStorage := severity.NewStorage(Scheme)

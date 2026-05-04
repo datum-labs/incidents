@@ -99,17 +99,20 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 	return nil
 }
 
-// Incidents returns the IncidentsService.
-func (c *Client) Incidents() *IncidentsService {
+// Incidents returns the IncidentsIface for managing incidents.
+func (c *Client) Incidents() IncidentsIface {
 	return &IncidentsService{client: c}
 }
 
-// Activities returns the ActivitiesService.
-func (c *Client) Activities() *ActivitiesService {
+// Activities returns the ActivitiesIface for managing activities.
+func (c *Client) Activities() ActivitiesIface {
 	return &ActivitiesService{client: c}
 }
 
-// Tasks returns the TasksService.
-func (c *Client) Tasks() *TasksService {
+// Tasks returns the TasksIface for managing tasks.
+func (c *Client) Tasks() TasksIface {
 	return &TasksService{client: c}
 }
+
+// Compile-time check that *Client satisfies Interface.
+var _ Interface = &Client{}

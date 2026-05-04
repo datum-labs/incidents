@@ -23,12 +23,12 @@ var _ rest.Creater = &EventStorage{}
 
 // EventStorage implements rest.Storage for IncidentEvents backed by Grafana IRM.
 type EventStorage struct {
-	irmClient       *irm.Client
+	irmClient       irm.Interface
 	incidentStorage *Storage
 }
 
 // NewEventStorage creates a new EventStorage.
-func NewEventStorage(irmClient *irm.Client, incidentStorage *Storage) *EventStorage {
+func NewEventStorage(irmClient irm.Interface, incidentStorage *Storage) *EventStorage {
 	return &EventStorage{
 		irmClient:       irmClient,
 		incidentStorage: incidentStorage,

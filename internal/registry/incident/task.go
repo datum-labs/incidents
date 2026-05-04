@@ -25,12 +25,12 @@ var _ rest.GracefulDeleter = &TaskStorage{}
 
 // TaskStorage implements rest.Storage for IncidentTasks backed by Grafana IRM.
 type TaskStorage struct {
-	irmClient       *irm.Client
+	irmClient       irm.Interface
 	incidentStorage *Storage
 }
 
 // NewTaskStorage creates a new TaskStorage.
-func NewTaskStorage(irmClient *irm.Client, incidentStorage *Storage) *TaskStorage {
+func NewTaskStorage(irmClient irm.Interface, incidentStorage *Storage) *TaskStorage {
 	return &TaskStorage{
 		irmClient:       irmClient,
 		incidentStorage: incidentStorage,

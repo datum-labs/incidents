@@ -26,7 +26,7 @@ var _ rest.GracefulDeleter = &Storage{}
 
 // Storage implements rest.Storage for Incidents backed by Grafana IRM.
 type Storage struct {
-	irmClient *irm.Client
+	irmClient irm.Interface
 	strategy  Strategy
 
 	// nameToID maps Kubernetes names to Grafana IRM incident IDs
@@ -34,7 +34,7 @@ type Storage struct {
 }
 
 // NewStorage creates a new Storage for Incidents.
-func NewStorage(irmClient *irm.Client, typer runtime.ObjectTyper) *Storage {
+func NewStorage(irmClient irm.Interface, typer runtime.ObjectTyper) *Storage {
 	return &Storage{
 		irmClient: irmClient,
 		strategy:  NewStrategy(typer),
