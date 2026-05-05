@@ -1,39 +1,164 @@
 package irm
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"sync"
+	"sync/atomic"
+	"time"
+)
 
-// StubClient is a no-op IRM client for use in demo/testing environments.
-// All operations return zero-value responses and nil errors.
-type StubClient struct{}
+// StubClient is an in-memory IRM client for use in demo/testing environments.
+// Data is stored in-process and not persisted across restarts.
+type StubClient struct {
+	incidents  *stubIncidentsService
+	activities *stubActivitiesService
+	tasks      *stubTasksService
+}
+
+// NewStubClient creates a StubClient with shared in-memory storage.
+func NewStubClient() *StubClient {
+	return &StubClient{
+		incidents:  &stubIncidentsService{},
+		activities: &stubActivitiesService{},
+		tasks:      &stubTasksService{},
+	}
+}
 
 // Compile-time check that *StubClient satisfies Interface.
 var _ Interface = &StubClient{}
 
-func (s *StubClient) Incidents() IncidentsIface  { return &stubIncidentsService{} }
-func (s *StubClient) Activities() ActivitiesIface { return &stubActivitiesService{} }
-func (s *StubClient) Tasks() TasksIface           { return &stubTasksService{} }
+func (s *StubClient) Incidents() IncidentsIface  { return s.incidents }
+func (s *StubClient) Activities() ActivitiesIface { return s.activities }
+func (s *StubClient) Tasks() TasksIface           { return s.tasks }
 
-// stubIncidentsService is a no-op implementation of IncidentsIface.
-type stubIncidentsService struct{}
-
-func (s *stubIncidentsService) Create(_ context.Context, _ *CreateIncidentRequest) (*CreateIncidentResponse, error) {
-	return &CreateIncidentResponse{}, nil
+// stubIncidentsService is an in-memory implementation of IncidentsIface.
+type stubIncidentsService struct {
+	mu        sync.RWMutex
+	incidents map[string]*Incident // keyed by IncidentID
+	counter   atomic.Int64
 }
 
-func (s *stubIncidentsService) Get(_ context.Context, _ string) (*GetIncidentResponse, error) {
-	return &GetIncidentResponse{}, nil
+func (s *stubIncidentsService) nextID() string {
+	return fmt.Sprintf("stub-%d", s.counter.Add(1))
 }
 
-func (s *stubIncidentsService) Update(_ context.Context, _ *UpdateIncidentRequest) (*UpdateIncidentResponse, error) {
-	return &UpdateIncidentResponse{}, nil
+func (s *stubIncidentsService) store() map[string]*Incident {
+	if s.incidents == nil {
+		s.incidents = make(map[string]*Incident)
+	}
+	return s.incidents
 }
 
-func (s *stubIncidentsService) Resolve(_ context.Context, _ string) (*ResolveIncidentResponse, error) {
-	return &ResolveIncidentResponse{}, nil
+func (s *stubIncidentsService) Create(_ context.Context, req *CreateIncidentRequest) (*CreateIncidentResponse, error) {
+	now := FlexTime{Time: time.Now().UTC()}
+	id := s.nextID()
+	inc := &Incident{
+		IncidentID:   id,
+		Title:        req.Title,
+		Severity:     req.Severity,
+		Status:       "active",
+		IsDrill:      req.IsDrill,
+		Summary:      req.Summary,
+		Labels:       req.Labels,
+		CreatedTime:  now,
+		ModifiedTime: now,
+	}
+	s.mu.Lock()
+	s.store()[id] = inc
+	s.mu.Unlock()
+	return &CreateIncidentResponse{Incident: *inc, IncidentID: id}, nil
 }
 
-func (s *stubIncidentsService) Query(_ context.Context, _ *QueryIncidentsRequest) (*QueryIncidentsResponse, error) {
-	return &QueryIncidentsResponse{}, nil
+func (s *stubIncidentsService) Get(_ context.Context, incidentID string) (*GetIncidentResponse, error) {
+	s.mu.RLock()
+	inc, ok := s.store()[incidentID]
+	s.mu.RUnlock()
+	if !ok {
+		return nil, fmt.Errorf("incident %q not found", incidentID)
+	}
+	cp := *inc
+	return &GetIncidentResponse{Incident: cp}, nil
+}
+
+func (s *stubIncidentsService) Update(_ context.Context, req *UpdateIncidentRequest) (*UpdateIncidentResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	inc, ok := s.store()[req.IncidentID]
+	if !ok {
+		return nil, fmt.Errorf("incident %q not found", req.IncidentID)
+	}
+	if req.Title != "" {
+		inc.Title = req.Title
+	}
+	if req.Severity != "" {
+		inc.Severity = req.Severity
+	}
+	if req.Summary != "" {
+		inc.Summary = req.Summary
+	}
+	if len(req.Labels) > 0 {
+		inc.Labels = req.Labels
+	}
+	inc.ModifiedTime = FlexTime{Time: time.Now().UTC()}
+	cp := *inc
+	return &UpdateIncidentResponse{Incident: cp}, nil
+}
+
+func (s *stubIncidentsService) Resolve(_ context.Context, incidentID string) (*ResolveIncidentResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	inc, ok := s.store()[incidentID]
+	if !ok {
+		return nil, fmt.Errorf("incident %q not found", incidentID)
+	}
+	inc.Status = "resolved"
+	now := FlexTime{Time: time.Now().UTC()}
+	inc.ModifiedTime = now
+	inc.ClosedTime = &now
+	cp := *inc
+	return &ResolveIncidentResponse{Incident: cp}, nil
+}
+
+func (s *stubIncidentsService) Query(_ context.Context, req *QueryIncidentsRequest) (*QueryIncidentsResponse, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var result []Incident
+	for _, inc := range s.store() {
+		if req != nil && req.Query != nil {
+			q := req.Query
+			if len(q.IncidentStatus) > 0 {
+				match := false
+				for _, st := range q.IncidentStatus {
+					if inc.Status == st {
+						match = true
+						break
+					}
+				}
+				if !match {
+					continue
+				}
+			}
+			if len(q.Severity) > 0 {
+				match := false
+				for _, sv := range q.Severity {
+					if inc.Severity == sv {
+						match = true
+						break
+					}
+				}
+				if !match {
+					continue
+				}
+			}
+		}
+		result = append(result, *inc)
+	}
+	return &QueryIncidentsResponse{
+		Incidents:    result,
+		TotalResults: len(result),
+	}, nil
 }
 
 func (s *stubIncidentsService) AssignRole(_ context.Context, _ *AssignRoleRequest) (*AssignRoleResponse, error) {

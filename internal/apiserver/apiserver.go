@@ -100,8 +100,8 @@ func (c completedConfig) New() (*IncidentsServer, error) {
 	// can start without real credentials (e.g. in a local kind demo cluster).
 	var irmClient irm.Interface
 	if os.Getenv("GRAFANA_IRM_STUB") == "true" {
-		klog.Info("GRAFANA_IRM_STUB=true: using no-op IRM stub client")
-		irmClient = &irm.StubClient{}
+		klog.Info("GRAFANA_IRM_STUB=true: using in-memory IRM stub client")
+		irmClient = irm.NewStubClient()
 	} else {
 		irmClient = irm.NewClient(
 			c.ExtraConfig.GrafanaIRMURL,
