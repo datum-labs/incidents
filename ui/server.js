@@ -16,8 +16,13 @@ const API_HOST = process.env.API_HOST || 'incidents-apiserver.incidents-system.s
 const API_PORT = process.env.API_PORT || 443;
 const TOKEN_PATH = '/var/run/secrets/kubernetes.io/serviceaccount/token';
 
-// Read service account token
+// Read auth token: prefer API_TOKEN env var, then fall back to service account file.
+// The incidents-apiserver uses Milo OIDC/static token auth, not k8s service account JWTs,
+// so API_TOKEN must be a valid Milo token (e.g. test-admin-token in demo).
 function getServiceAccountToken() {
+  if (process.env.API_TOKEN) {
+    return process.env.API_TOKEN;
+  }
   try {
     if (existsSync(TOKEN_PATH)) {
       return readFileSync(TOKEN_PATH, 'utf8').trim();
