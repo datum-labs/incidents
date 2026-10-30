@@ -177,6 +177,7 @@ jobs:
             > To modify which files are synced, edit [.github/template-sync.yaml](.github/template-sync.yaml).
           branch: chore/sync-template
           delete-branch: true
+          sign-commits: true
           labels: ${{ steps.config.outputs.pr_labels }}
 
       - name: Dry run summary
