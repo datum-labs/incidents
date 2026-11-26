@@ -273,12 +273,6 @@ tasks:
       - echo "✅ UI type check complete"
     silent: true
 
-  ui:storybook:
-    desc: Start Storybook for UI component development
-    dir: ui
-    cmds:
-      - npm run storybook
-
   ui:clean:
     desc: Clean UI build artifacts
     dir: ui

@@ -116,9 +116,6 @@ npm test
 
 # Build library
 npm run build:lib
-
-# Start Storybook
-npm run storybook
 ```
 
 ## License
