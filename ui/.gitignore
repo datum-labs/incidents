@@ -7,9 +7,6 @@ dist/
 # Test coverage
 coverage/
 
-# Storybook
-storybook-static/
-
 # IDE
 .idea/
 .vscode/
