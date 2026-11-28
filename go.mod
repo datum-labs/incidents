@@ -7,9 +7,9 @@ toolchain go1.27.4
 require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
-	k8s.io/apimachinery v0.37.2
-	k8s.io/apiserver v0.37.2
-	k8s.io/component-base v0.37.2
+	k8s.io/apimachinery v0.37.3
+	k8s.io/apiserver v0.37.3
+	k8s.io/component-base v0.37.3
 	k8s.io/klog/v2 v2.140.0
 	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad
 )
@@ -101,12 +101,12 @@ require (
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
-	k8s.io/api v0.37.2 // indirect
-	k8s.io/client-go v0.37.2 // indirect
-	k8s.io/code-generator v0.37.2 // indirect
+	k8s.io/api v0.37.3 // indirect
+	k8s.io/client-go v0.37.3 // indirect
+	k8s.io/code-generator v0.37.3 // indirect
 	k8s.io/gengo/v2 v2.0.0-20260408192533-25e2208e0dc3 // indirect
-	k8s.io/kms v0.37.2 // indirect
-	k8s.io/streaming v0.37.2 // indirect
+	k8s.io/kms v0.37.3 // indirect
+	k8s.io/streaming v0.37.3 // indirect
 	k8s.io/utils v0.0.0-20260626114624-be93311217bd // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.36.0 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
